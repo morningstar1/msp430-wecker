@@ -12,7 +12,7 @@ void setNoteForTimer() {
     TA0CCR1 = TA0CCR0 >> DUTY_CYCLE;
 
     // set duration (32768*snd_ms_tick*notes_duration[snd_notes_pos++])/1000-DEAD_MS;
-    TA1CCR0 = TA1R + ((duration - DEAD_MS) << 5);
+    TA1CCR0 += (duration - DEAD_MS) << 5;
 }
 
 void init_sound(void) {
@@ -50,7 +50,7 @@ void update_note(void) {
     if (!snd_cut_off)            // DEAD TIME
     {
         TA0CCR0 = 0;   // stop note frequency timer (a ZERO will stop the timer)
-        TA1CCR0 = TA1R + (DEAD_MS << 5);
+        TA1CCR0 += (DEAD_MS << 5);
         snd_cut_off = 1; // will be used after the dead time is over (load next note)
     } else                        // NOTE TIME
     {
