@@ -10,6 +10,5 @@
 #include <stdint.h>
 
 extern uint8_t lpm_state;
-void UART_TX(char * tx_data);
 
 #endif /* RUNMODE_H_ */

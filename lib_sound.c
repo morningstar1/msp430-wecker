@@ -1,4 +1,4 @@
-#include <msp430g2553.h>
+#include <msp430.h>
 #include "lib_sound.h"
 #include "melody.h"
 
@@ -17,7 +17,7 @@ void setNoteForTimer() {
 
 void init_sound(void) {
     P1DIR |= SPEAKER;     // output
-    P1SEL |= SPEAKER;     // TA0.0 option (PWM output)
+    P1SEL0 |= SPEAKER;     // TA0.0 option (PWM output)
     P1OUT &= ~SPEAKER;
 
     snd_notes_pos = 0;    // notes position (current pattern)

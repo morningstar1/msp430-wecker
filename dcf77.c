@@ -1,7 +1,5 @@
-#include <msp430g2553.h>
+#include <msp430.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
 
 #include "dcf77.h"
 #include "runmode.h"
@@ -23,7 +21,7 @@ void initPort(){
     P2IFG &= ~BIT0;                    // P1.3 IFG cleared
     //Setup P2.1
     P2DIR  &= ~BIT1;
-    P2SEL |= BIT1;
+    P2SEL0 |= BIT1;
     for(int i=0;i<4;i++){
         doublebuffer[0].bitcount = 0;
         doublebuffer[0].bitstream[i] = 0;
@@ -155,23 +153,10 @@ void decodeDCF(char * uart_buffer){
         uint16_t * bs = doublebuffer[read_index].bitstream;
 
 #if 1
-        snprintf(uart_buffer,32,"0x%04X\r\n", bs[0]);
-        UART_TX(uart_buffer);
-        snprintf(uart_buffer,32,"0x%04X\r\n", bs[1]);
-        UART_TX(uart_buffer);
-        snprintf(uart_buffer,32,"0x%04X\r\n", bs[2]);
-        UART_TX(uart_buffer);
-        snprintf(uart_buffer,32,"0x%04X\r\n", bs[3]);
-        UART_TX(uart_buffer);
         uint8_t minute_bcd_low   = extract(bs, 21, 4);
         uint8_t minute_bcd_high  = extract(bs, 25, 3);
         uint8_t minute_parity    = extract(bs, 28, 1);
         uint8_t minute_parity_calc = calcParity(bs, 21, 28-21);
-        snprintf(uart_buffer,32,"extract: low %2d high %2d (%d %d)\r\n"
-                ,minute_bcd_low, minute_bcd_high
-                ,minute_parity, minute_parity_calc
-                );
-        UART_TX(uart_buffer);
 /*
         uint8_t hour_bcd_low     = extract(bs, 29, 4);
         uint8_t hour_bcd_high    = extract(bs, 33, 2);
@@ -205,9 +190,6 @@ void decodeDCF(char * uart_buffer){
         UART_TX(uart_buffer);
         */
 #endif
-    }else{
-        snprintf(uart_buffer,32,"Count %d\r\n", doublebuffer[read_index].bitcount);
-        UART_TX(uart_buffer);
     }
     doublebuffer[read_index].bitcount = 0;
     doublebuffer[read_index].bitstream[0] = 0;

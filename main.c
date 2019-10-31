@@ -1,5 +1,4 @@
-#include <msp430g2553.h>
-#include <stdio.h>
+#include <msp430.h>
 #include "lib_sound.h"
 #include "dcf77.h"
 #include "runmode.h"
@@ -8,16 +7,21 @@ uint8_t playsound = 0;
 
 int main(void) {
     WDTCTL = WDTPW + WDTHOLD;
-    BCSCTL1 = CALBC1_16MHZ | XT2OFF | DIVA_0;       // SMCLK=~16MHz
-    DCOCTL =  CALDCO_16MHZ;
+    PM5CTL0 &= ~LOCKLPM5;                   // Disable the GPIO power-on default high-impedance mode
+                                            // to activate previously configured port settings
 
-    BCSCTL3 = XCAP_3 | LFXT1S_0 | XT2S_0;
+    //BCSCTL1 = CALBC1_16MHZ | XT2OFF | DIVA_0;       // SMCLK=~16MHz
+    //DCOCTL =  CALDCO_16MHZ;
+    //BCSCTL3 = XCAP_3 | LFXT1S_0 | XT2S_0;
 
-    do {
-        IFG1 &= ~OFIFG;   // IFG1=Interrupt Flag Register 1
-        __delay_cycles(1000);
+    // Configure XT1 oscillator
+    P4SEL0 |= BIT1 | BIT2;                              // P4.2~P4.1: crystal pins
+    do  {
+        CSCTL7 &= ~(XT1OFFG | DCOFFG);                  // Clear XT1 and DCO fault flag
+        SFRIFG1 &= ~OFIFG;
+    }
+    while (SFRIFG1 & OFIFG);
 
-    } while (IFG1 & OFIFG);
 
     P1DIR |= BIT0 + BIT6;        // P1.0 and P1.6 pins output the rest are input
     P1REN |= BIT3;                     // Enable internal pull-up/down resistors
@@ -26,22 +30,9 @@ int main(void) {
     P1IES |= BIT3;                     // P1.3 Hi/lo edge
     P1IFG &= ~BIT3;                    // P1.3 IFG cleared
 
-    P1SEL  |= BIT1 | BIT2;                // Select TX and RX functionality for P1.1 & P1.2
-    P1SEL2 |= BIT1 | BIT2;              //
-    UCA0CTL1 |= UCSSEL_2;             // Have USCI use System Master Clock: AKA core clk 1MHz
-    //UCA0BR0 = 104;                    // 1MHz 9600, see user manual
-    //UCA0BR1 = 0;                      //
-    uint16_t br = 104;
-    UCA0BR0 = br & 0xFF;                    // 1MHz 9600, see user manual
-    UCA0BR1 = (br >> 8) & 0xFF;                      //
-
-    UCA0MCTL = UCBRS_0 | UCBRF_3 | UCOS16;                // Modulation UCBRSx = 1
-    UCA0CTL1 &= ~UCSWRST;             // Start USCI state machine
-
     initPort();
 
     init_sound();
-    UART_TX("Welcome, to Quake ]I[ Arena\r\n");
     _EINT();
     char buffer[32];
 
@@ -73,26 +64,6 @@ int main(void) {
         }
     }
     return 0;
-}
-
-void UART_TX(char * tx_data) // Define a function which accepts a character pointer to an array
-{
-    /*
-    unsigned int i=0;
-    while(tx_data[i]) // Increment through array, look for null pointer (0) at end of string
-    {
-        while (!(IFG2 & UCA0TXIFG));                                         // Warten bis USART0 TX-Puffer frei (leer) ...
-
-        //while ((UCA0STAT & UCBUSY)); // Wait if line TX/RX module is busy with data
-        UCA0TXBUF = tx_data[i]; // Send out element i of tx_data array on UART bus
-        i++; // Increment variable for array address
-    }*/
-
-    while (*tx_data != 0)                                                              // Solange nicht das Terminiert-Zeichen kommt ...
-    {
-      while (!(IFG2 & UCA0TXIFG));                                         // Warten bis USART0 TX-Puffer frei (leer) ...
-      UCA0TXBUF = *tx_data++;                                                          // Zeichen dazufügen.-
-    } // while
 }
 
 __attribute__((interrupt(PORT1_VECTOR)))
