@@ -3,6 +3,7 @@
 
 #include "dcf77.h"
 #include "runmode.h"
+#include "lcd.h"
 
 struct bsData{
     uint16_t bitstream[4];
@@ -14,33 +15,17 @@ uint8_t write_index = 0;
 
 uint8_t minute_done = 0;
 
-void initPort(){
-    //Setup P2.0
-    P2DIR  &= ~BIT0;
-    P2IE  |= BIT0;                      // P1.3 interrupt enabled
-    P2IFG &= ~BIT0;                    // P1.3 IFG cleared
+void initCapturePort(){
     //Setup P2.1
-    P2DIR  &= ~BIT1;
-    P2SEL0 |= BIT1;
+    P8DIR  &= ~BIT3;
+    P8SEL0 |= BIT3;
     for(int i=0;i<4;i++){
         doublebuffer[0].bitcount = 0;
         doublebuffer[0].bitstream[i] = 0;
     }
 
-    TA1CCTL1 |= CM_3 | CCIS_0 | SCS | CAP | CCIE;
-}
-
-__attribute__((interrupt(PORT2_VECTOR)))
-void Port_2(void) {
-    P2IFG &= ~BIT0;
-
-    if(P2IES & BIT0){
-        //P1OUT &= ~BIT6;
-        P2IES &= ~BIT0;
-    }else{
-        //P1OUT |= BIT6;
-        P2IES |= BIT0;
-    }
+    //TA1CCTL1 |= CM_3 | CCIS_0 | SCS | CAP | CCIE;
+    TA1CCTL2 |= CM_3 | CCIS_0 | SCS | CAP | CCIE;
 }
 
 void pushBit(uint8_t bit){
@@ -59,14 +44,15 @@ void pushBit(uint8_t bit){
 __attribute__((interrupt(TIMER1_A1_VECTOR)))
 void edge_detect(void) {
 
-    if(TA1CCTL1 & CCIFG){
-        TA1CCTL1 &= ~CCIFG;
+    if(TA1CCTL2 & CCIFG){
+        TA1CCTL2 &= ~CCIFG;
     }else{
         return;
     }
+    //P1OUT ^= BIT0;                      // Toggle P1.6
 
-    uint16_t counter = TA1CCR1;
-    uint16_t new_state = TA1CCTL1 & CCI;
+    uint16_t counter = TA1CCR2;
+    uint16_t new_state = TA1CCTL2 & CCI;
     static uint16_t last_state = 0;
     static uint16_t last_counter = 0;
     if(new_state ^ last_state){
@@ -75,7 +61,6 @@ void edge_detect(void) {
 
         if(new_state){
             //rising edge
-            P1OUT &= ~(BIT0|BIT6);
             if(counter_diff > 52428){
                 //detected last Second;
                 minute_done++;
@@ -90,18 +75,14 @@ void edge_detect(void) {
             const uint16_t one_upperlimit = 7373;
             if(counter_diff > zero_lowerlimit && counter_diff < zero_upperlimit){
                 pushBit(0);
-                P1OUT &= ~BIT0;
-                P1OUT |=  BIT6;
             }else if(counter_diff > one_lowerlimit && counter_diff < one_upperlimit){
                 pushBit(1);
-                P1OUT &= ~BIT6;
-                P1OUT |=  BIT0;
             }
         }
         last_counter = counter;
     }
     last_state = new_state;
-    if(minute_done > 0){
+    if(1 || minute_done > 0){
         switch (lpm_state) {
         case 0:
             LPM0_EXIT;
@@ -129,7 +110,7 @@ uint8_t calcParity(uint16_t * bs, uint8_t startbit, uint8_t count){
 }
 
 uint8_t extract(uint16_t * bs, uint8_t startbit, uint8_t count){
-    if(startbit >> 4 != (startbit + count) >> 4){
+    if(startbit >> 4 != (startbit + count - 1) >> 4){
         //multibyte
         uint8_t lowercount = 16 - (startbit & 0xF);
         uint16_t lower_stuff = extract(bs, startbit, lowercount);
@@ -144,32 +125,27 @@ uint8_t extract(uint16_t * bs, uint8_t startbit, uint8_t count){
     }
 }
 
-void decodeDCF(char * uart_buffer){
+void decodeDCF(){
     minute_done--;
-    P1OUT |= BIT0|BIT6;
     //isr can go on;
     if(doublebuffer[read_index].bitcount  >= 59){
         //got right bit count
         uint16_t * bs = doublebuffer[read_index].bitstream;
-
-#if 1
         uint8_t minute_bcd_low   = extract(bs, 21, 4);
         uint8_t minute_bcd_high  = extract(bs, 25, 3);
-        uint8_t minute_parity    = extract(bs, 28, 1);
-        uint8_t minute_parity_calc = calcParity(bs, 21, 28-21);
-/*
+        //uint8_t minute_parity    = extract(bs, 28, 1);
+        //uint8_t minute_parity_calc = calcParity(bs, 21, 28-21);
+        LCDMEM[pos3] = digit[minute_bcd_high];
+        LCDMEM[pos4] = digit[minute_bcd_low];
+
         uint8_t hour_bcd_low     = extract(bs, 29, 4);
         uint8_t hour_bcd_high    = extract(bs, 33, 2);
-        uint8_t hour_parity      = extract(bs, 35, 1);
-        uint8_t hour_parity_calc = calcParity(bs, 29, 36-29);
-        snprintf(uart_buffer,32,"%02d:%02d h(%d %d) m(%d %d)\r\n",
-                (hour_bcd_low + hour_bcd_high*10),
-                (minute_bcd_low + minute_bcd_high*10),
-                hour_parity, hour_parity_calc,
-                minute_parity, minute_parity_calc
-                );
-        UART_TX(uart_buffer);
+        //uint8_t hour_parity      = extract(bs, 35, 1);
+        //uint8_t hour_parity_calc = calcParity(bs, 29, 36-29);
+        LCDMEM[pos1] = digit[hour_bcd_high];
+        LCDMEM[pos2] = digit[hour_bcd_low];
 
+        /*
         uint8_t day_bcd_low      = extract(bs, 36, 4);
         uint8_t day_bcd_high     = extract(bs, 40, 2);
         uint8_t weekday          = extract(bs, 42, 3);
@@ -179,21 +155,19 @@ void decodeDCF(char * uart_buffer){
         uint8_t year_bcd_high    = extract(bs, 54, 4);
         uint8_t date_parity      = extract(bs, 58, 1);
         uint8_t date_parity_calc = calcParity(bs, 36, 58-36);
-
-        snprintf(uart_buffer,32,"%d.%d.20%02d %d d(%d %d)\r\n",
-                (day_bcd_low + day_bcd_high*10),
-                (month_bcd_low + month_bcd_high*10),
-                (year_bcd_low + year_bcd_high*10),
-                weekday,
-                date_parity, date_parity_calc
-                );
-        UART_TX(uart_buffer);
-        */
-#endif
+         */
+        LCDMEM[pos1+1] = 0x00;
+    }else{
+        LCDMEM[pos1+1] = 0xFF;
     }
     doublebuffer[read_index].bitcount = 0;
     doublebuffer[read_index].bitstream[0] = 0;
     doublebuffer[read_index].bitstream[1] = 0;
     doublebuffer[read_index].bitstream[2] = 0;
     doublebuffer[read_index].bitstream[3] = 0;
+}
+
+void showDCFCounter(){
+    LCDMEM[pos5] = digit[(doublebuffer[write_index].bitcount / 10)%10];
+    LCDMEM[pos6] = digit[doublebuffer[write_index].bitcount % 10];
 }

@@ -2,6 +2,7 @@
 #include "lib_sound.h"
 #include "dcf77.h"
 #include "runmode.h"
+#include "lcd.h"
 
 uint8_t playsound = 0;
 
@@ -20,44 +21,46 @@ int main(void) {
         CSCTL7 &= ~(XT1OFFG | DCOFFG);                  // Clear XT1 and DCO fault flag
         SFRIFG1 &= ~OFIFG;
     }
-    while (SFRIFG1 & OFIFG);
+    while (SFRIFG1 & OFIFG);                           // Test oscillator fault flag
+
+    // Disable the GPIO power-on default high-impedance mode
+    // to activate previously configured port settings
+    PM5CTL0 &= ~LOCKLPM5;
+
+    CSCTL4 = SELMS__DCOCLKDIV + SELA__XT1CLK;           // MCLK=SMCLK=DCO; ACLK=XT1
 
 
-    P1DIR |= BIT0 + BIT6;        // P1.0 and P1.6 pins output the rest are input
-    P1REN |= BIT3;                     // Enable internal pull-up/down resistors
-    P1OUT = BIT3;                     // Select pull-up mode for P1.3
-    P1IE |= BIT3;                      // P1.3 interrupt enabled
-    P1IES |= BIT3;                     // P1.3 Hi/lo edge
-    P1IFG &= ~BIT3;                    // P1.3 IFG cleared
 
-    initPort();
+    P1DIR |= BIT0;        // P1.0 and P1.6 pins output the rest are input
+    P1REN |= BIT2;                     // Enable internal pull-up/down resistors
+    P1OUT = BIT2;                     // Select pull-up mode for P1.3
+    P1IE |= BIT2;                      // P1.3 interrupt enabled
+    P1IES |= BIT2;                     // P1.3 Hi/lo edge
+    P1IFG &= ~BIT2;                    // P1.3 IFG cleared
+
+    initLCD();
+
+    initCapturePort();
 
     init_sound();
     _EINT();
-    char buffer[32];
 
     while (1) {
+        _DINT();
         if(minute_done){
-            decodeDCF(buffer);
+            decodeDCF();
         }
-        /*
-        if(counterready){
-            uint8_t cr = counterready;
-            counterready = 0;
-            sprintf(buffer, "Counter %d %5u, bitcount %2d\r\n", cr, counter_diff, bitcount);
-            UART_TX(buffer);
-        }
-        */
-        //snprintf(buffer,32, "ps %d\r\n", playsound);
-        //UART_TX(buffer);
+        showDCFCounter();
+        _EINT();
+
 
         if (playsound) {
-            //P1OUT |= BIT6;                      // Toggle P1.6
+            //P1OUT |= BIT0;                      // Toggle P1.6
             //start_sound();
             lpm_state = 0;
             _BIS_SR(LPM0_bits + GIE);  // LPM0 und globale Interrupts aktivieren
         } else {
-            //P1OUT &= ~BIT6;                      // Toggle P1.6
+            //P1OUT &= ~BIT0;                      // Toggle P1.6
             //stop_sound();
             lpm_state = 3;
             _BIS_SR(LPM3_bits + GIE);  // LPM3 und globale Interrupts aktivieren
@@ -68,7 +71,7 @@ int main(void) {
 
 __attribute__((interrupt(PORT1_VECTOR)))
 void Port_1(void) {
-    P1IFG &= ~BIT3;                     // P1.3 IFG cleared
+    P1IFG &= ~BIT2;
     playsound = !playsound;
     switch (lpm_state) {
     case 0:

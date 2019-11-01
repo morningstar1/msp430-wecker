@@ -4,9 +4,7 @@
  *  Created on: 17.10.2019
  *      Author: sebastian
  */
-
-#ifndef DCF77_H_
-#define DCF77_H_
+#pragma once
 /*
 struct dcf77{
     unsigned int intern : 15;       //0..14   Interne PTB-Informationen / Seit Oktober 2006 Wetterinformationen
@@ -57,11 +55,11 @@ struct dcf77{
     unsigned int alignment : 5;
 };*/
 
-void decodeDCF(char * uart_buffer);
+void decodeDCF();
+void showDCFCounter();
 
 //extern uint64_t bitstream;
 //extern uint8_t bitcount;
 extern uint8_t minute_done;
-void initPort();
+void initCapturePort();
 
-#endif /* DCF77_H_ */
