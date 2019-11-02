@@ -9,7 +9,7 @@
 #define LIB_SOUND_H_
 #include <stdint.h>
 
-#define SPEAKER         BIT2    // P1.2
+#define SPEAKER         BIT7    // P1.2
 #define LOOP            1       // play in loop
 #define ONCE            0       // play once
 #define PATTERN_SIZE    16      // size of pattern
@@ -20,5 +20,6 @@
 void init_sound(void);
 void start_sound(void);
 void stop_sound(void);
+void toogle_sound(void);
 
 #endif /* LIB_SOUND_H_ */

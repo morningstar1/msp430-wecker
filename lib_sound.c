@@ -1,6 +1,7 @@
 #include <msp430.h>
 #include "lib_sound.h"
 #include "melody.h"
+#include "runmode.h"
 
 uint8_t snd_notes_pos;
 
@@ -30,13 +31,23 @@ void init_sound(void) {
     TA1CTL |= TASSEL_1 + MC_2 + ID_0;         // 32kHz crystal, no divider
 }
 
+void toogle_sound(void){
+    if(playsound){
+        stop_sound();
+    }else{
+        start_sound();
+    }
+}
+
 void start_sound(void) {
+    playsound = 1;
     setNoteForTimer();
     TA0CTL |= MC_1;
     TA1CCTL0 |= CCIE;
 }
 
 void stop_sound(void) {
+    playsound = 0;
     TA0CTL &= ~MC_1;
     TA1CCTL0 &= ~CCIE;
     snd_notes_pos = 0;

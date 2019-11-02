@@ -58,8 +58,14 @@ struct dcf77{
 void decodeDCF();
 void showDCFCounter();
 
-//extern uint64_t bitstream;
-//extern uint8_t bitcount;
 extern uint8_t minute_done;
+
 void initCapturePort();
+void enableCapture();
+void disableCapture();
+void toggleCapture();
+
+void showTime();
+void showDate();
+
 

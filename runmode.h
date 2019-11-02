@@ -5,10 +5,25 @@
  *      Author: sebastian
  */
 
-#ifndef RUNMODE_H_
-#define RUNMODE_H_
+#pragma once
 #include <stdint.h>
 
 extern uint8_t lpm_state;
+extern uint8_t playsound;
+extern uint8_t dcfCaptureRunning;
 
-#endif /* RUNMODE_H_ */
+#define EXIT_ISR { switch (lpm_state) {\
+case 0:\
+    LPM0_EXIT;\
+    break;\
+case 3:\
+    LPM3_EXIT;\
+    break;\
+case 35:\
+    LPM3_EXIT;\
+    break;\
+case 4:\
+    LPM4_EXIT;\
+    break;\
+}\
+}

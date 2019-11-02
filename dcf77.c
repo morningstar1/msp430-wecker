@@ -15,8 +15,18 @@ uint8_t write_index = 0;
 
 uint8_t minute_done = 0;
 
+struct Time{
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t day;
+    uint8_t month;
+    uint8_t year;
+    uint8_t timeReady;
+};
+
+__attribute__ ((persistent)) struct Time currentTime = {0,0,0,0,0,0};
+
 void initCapturePort(){
-    //Setup P2.1
     P8DIR  &= ~BIT3;
     P8SEL0 |= BIT3;
     for(int i=0;i<4;i++){
@@ -25,7 +35,33 @@ void initCapturePort(){
     }
 
     //TA1CCTL1 |= CM_3 | CCIS_0 | SCS | CAP | CCIE;
-    TA1CCTL2 |= CM_3 | CCIS_0 | SCS | CAP | CCIE;
+    TA1CCTL2 |= CM_3 | CCIS_0 | SCS | CAP;
+}
+
+void toggleCapture(){
+    if(dcfCaptureRunning){
+        disableCapture();
+    }else{
+        enableCapture();
+    }
+}
+
+void enableCapture(){
+    dcfCaptureRunning = 1;
+    for(int i=0;i<4;i++){
+        doublebuffer[0].bitcount = 0;
+        doublebuffer[0].bitstream[i] = 0;
+    }
+    read_index = 1;
+    write_index = 0;
+    TA1CCTL2 |= CCIE;
+    P2OUT &=~BIT7;
+}
+
+void disableCapture(){
+    dcfCaptureRunning = 0;
+    TA1CCTL2 &= ~CCIE;
+    P2OUT |= BIT7;
 }
 
 void pushBit(uint8_t bit){
@@ -49,7 +85,6 @@ void edge_detect(void) {
     }else{
         return;
     }
-    //P1OUT ^= BIT0;                      // Toggle P1.6
 
     uint16_t counter = TA1CCR2;
     uint16_t new_state = TA1CCTL2 & CCI;
@@ -83,17 +118,7 @@ void edge_detect(void) {
     }
     last_state = new_state;
     if(1 || minute_done > 0){
-        switch (lpm_state) {
-        case 0:
-            LPM0_EXIT;
-            break;
-        case 3:
-            LPM3_EXIT;
-            break;
-        case 4:
-            LPM4_EXIT;
-            break;
-        }
+        EXIT_ISR;
     }
 }
 
@@ -127,38 +152,41 @@ uint8_t extract(uint16_t * bs, uint8_t startbit, uint8_t count){
 
 void decodeDCF(){
     minute_done--;
-    //isr can go on;
     if(doublebuffer[read_index].bitcount  >= 59){
         //got right bit count
         uint16_t * bs = doublebuffer[read_index].bitstream;
         uint8_t minute_bcd_low   = extract(bs, 21, 4);
         uint8_t minute_bcd_high  = extract(bs, 25, 3);
-        //uint8_t minute_parity    = extract(bs, 28, 1);
-        //uint8_t minute_parity_calc = calcParity(bs, 21, 28-21);
-        LCDMEM[pos3] = digit[minute_bcd_high];
-        LCDMEM[pos4] = digit[minute_bcd_low];
+        uint8_t minute_parity    = extract(bs, 28, 1);
+        uint8_t minute_parity_calc = calcParity(bs, 21, 28-21);
 
         uint8_t hour_bcd_low     = extract(bs, 29, 4);
         uint8_t hour_bcd_high    = extract(bs, 33, 2);
-        //uint8_t hour_parity      = extract(bs, 35, 1);
-        //uint8_t hour_parity_calc = calcParity(bs, 29, 36-29);
-        LCDMEM[pos1] = digit[hour_bcd_high];
-        LCDMEM[pos2] = digit[hour_bcd_low];
 
-        /*
+        uint8_t hour_parity      = extract(bs, 35, 1);
+        uint8_t hour_parity_calc = calcParity(bs, 29, 35-29);
+
         uint8_t day_bcd_low      = extract(bs, 36, 4);
         uint8_t day_bcd_high     = extract(bs, 40, 2);
-        uint8_t weekday          = extract(bs, 42, 3);
+        //uint8_t weekday          = extract(bs, 42, 3);
         uint8_t month_bcd_low    = extract(bs, 45, 4);
         uint8_t month_bcd_high   = extract(bs, 49, 1);
         uint8_t year_bcd_low     = extract(bs, 50, 4);
         uint8_t year_bcd_high    = extract(bs, 54, 4);
         uint8_t date_parity      = extract(bs, 58, 1);
         uint8_t date_parity_calc = calcParity(bs, 36, 58-36);
-         */
-        LCDMEM[pos1+1] = 0x00;
-    }else{
-        LCDMEM[pos1+1] = 0xFF;
+        if(    date_parity == date_parity_calc
+            && hour_parity == hour_parity_calc
+            && minute_parity == minute_parity_calc){
+            SYSCFG0 &= ~PFWP;                   // Program FRAM write enable
+            currentTime.minute = minute_bcd_high * 10 + minute_bcd_low;
+            currentTime.hour = hour_bcd_high * 10 + hour_bcd_low;
+            currentTime.day = day_bcd_high * 10 + day_bcd_low;
+            currentTime.month = month_bcd_high * 10 + month_bcd_low;
+            currentTime.year = year_bcd_high * 10 + year_bcd_low;
+            currentTime.timeReady = 1;
+            SYSCFG0 |= PFWP;                    // Program FRAM write protected (not writable)
+        }
     }
     doublebuffer[read_index].bitcount = 0;
     doublebuffer[read_index].bitstream[0] = 0;
@@ -168,6 +196,29 @@ void decodeDCF(){
 }
 
 void showDCFCounter(){
-    LCDMEM[pos5] = digit[(doublebuffer[write_index].bitcount / 10)%10];
-    LCDMEM[pos6] = digit[doublebuffer[write_index].bitcount % 10];
+    LCDMEMW[posw1] = letter['D'-'A'];
+    LCDMEMW[posw2] = letter['C'-'A'];
+    LCDMEMW[posw3] = letter['F'-'A'] | (currentTime.timeReady ? 1 << 10 : 0);
+    LCDMEMW[posw4] = 1<<10;
+
+    LCDMEMW[posw5] = digit[(doublebuffer[write_index].bitcount / 10)%10];
+    LCDMEMW[posw6] = digit[doublebuffer[write_index].bitcount % 10] | ((dcfCaptureRunning) ? 1<<8 : 0);
+}
+
+void showTime(){
+    LCDMEMW[posw1] = digit[(currentTime.hour / 10)%10];
+    LCDMEMW[posw2] = digit[currentTime.hour % 10] | 1 << 10;
+    LCDMEMW[posw3] = digit[(currentTime.minute / 10)%10] | (currentTime.timeReady ? 1 << 10 : 0);
+    LCDMEMW[posw4] = digit[currentTime.minute % 10];
+    LCDMEMW[posw5] = 0;
+    LCDMEMW[posw6] = 0;
+}
+
+void showDate(){
+    LCDMEMW[posw1] = digit[(currentTime.day / 10)%10];
+    LCDMEMW[posw2] = digit[currentTime.day % 10] | 1 << 8;
+    LCDMEMW[posw3] = digit[(currentTime.month / 10)%10] | (currentTime.timeReady ? 1 << 10 : 0);
+    LCDMEMW[posw4] = digit[currentTime.month % 10] | 1 << 8;
+    LCDMEMW[posw5] = digit[(currentTime.year / 10)%10];
+    LCDMEMW[posw6] = digit[currentTime.year % 10];
 }
