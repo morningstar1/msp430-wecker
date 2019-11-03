@@ -27,8 +27,6 @@ struct Time{
 __attribute__ ((persistent)) struct Time currentTime = {0,0,0,0,0,0};
 
 void initCapturePort(){
-    P8DIR  &= ~BIT3;
-    P8SEL0 |= BIT3;
     for(int i=0;i<4;i++){
         doublebuffer[0].bitcount = 0;
         doublebuffer[0].bitstream[i] = 0;
@@ -150,7 +148,8 @@ uint8_t extract(uint16_t * bs, uint8_t startbit, uint8_t count){
     }
 }
 
-void decodeDCF(){
+uint8_t decodeDCF(){
+    uint8_t ret = 0;
     minute_done--;
     if(doublebuffer[read_index].bitcount  >= 59){
         //got right bit count
@@ -178,6 +177,9 @@ void decodeDCF(){
         if(    date_parity == date_parity_calc
             && hour_parity == hour_parity_calc
             && minute_parity == minute_parity_calc){
+
+        }
+        {
             SYSCFG0 &= ~PFWP;                   // Program FRAM write enable
             currentTime.minute = minute_bcd_high * 10 + minute_bcd_low;
             currentTime.hour = hour_bcd_high * 10 + hour_bcd_low;
@@ -186,6 +188,7 @@ void decodeDCF(){
             currentTime.year = year_bcd_high * 10 + year_bcd_low;
             currentTime.timeReady = 1;
             SYSCFG0 |= PFWP;                    // Program FRAM write protected (not writable)
+            ret = 1;
         }
     }
     doublebuffer[read_index].bitcount = 0;
@@ -193,6 +196,7 @@ void decodeDCF(){
     doublebuffer[read_index].bitstream[1] = 0;
     doublebuffer[read_index].bitstream[2] = 0;
     doublebuffer[read_index].bitstream[3] = 0;
+    return ret;
 }
 
 void showDCFCounter(){
@@ -221,4 +225,16 @@ void showDate(){
     LCDMEMW[posw4] = digit[currentTime.month % 10] | 1 << 8;
     LCDMEMW[posw5] = digit[(currentTime.year / 10)%10];
     LCDMEMW[posw6] = digit[currentTime.year % 10];
+}
+
+void incrementTime(){
+    SYSCFG0 &= ~PFWP;                   // Program FRAM write enable
+    currentTime.minute = (currentTime.minute + 1) % 60;
+    if(currentTime.minute == 0){
+        currentTime.hour = ((currentTime.hour + 1) % 24);
+        if(currentTime.hour == 0){
+            //increment date
+        }
+    }
+    SYSCFG0 |= PFWP;                    // Program FRAM write protected (not writable)
 }

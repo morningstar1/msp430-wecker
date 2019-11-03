@@ -55,7 +55,7 @@ struct dcf77{
     unsigned int alignment : 5;
 };*/
 
-void decodeDCF();
+uint8_t decodeDCF();
 void showDCFCounter();
 
 extern uint8_t minute_done;
@@ -67,5 +67,6 @@ void toggleCapture();
 
 void showTime();
 void showDate();
+void incrementTime();
 
 

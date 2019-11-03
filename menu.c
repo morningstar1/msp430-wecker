@@ -12,8 +12,8 @@
 #include "runmode.h"
 #include "lib_sound.h"
 
-uint8_t button1pressed;
-uint8_t button2pressed;
+uint8_t button1pressed = 0;
+uint8_t button2pressed = 0;
 
 struct Menu{
     void (*draw)();
@@ -40,11 +40,18 @@ void showMusic(){
 }
 
 struct Menu menues[] = {{&showTime}, {&showDate}, {&ShowDCF}, {&showMusic}};
-uint8_t currentMenu = 0;
+__attribute__ ((persistent)) uint8_t currentMenu = 0;
+
+void setCurrentMenu(uint8_t menu){
+    SYSCFG0 &= ~PFWP;                   // Program FRAM write enable
+    currentMenu = menu;
+    SYSCFG0 |= PFWP;                    // Program FRAM write protected (not writable)
+
+}
 
 void showMenu(){
     if(button1pressed){
-        currentMenu = (currentMenu+1) % 4;
+        setCurrentMenu((currentMenu+1) % 4);
     }
 
     menues[currentMenu].draw();

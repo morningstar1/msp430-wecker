@@ -75,10 +75,6 @@ void initLCD(){
 
 void Clear_LCD(){
     for(int i=5;i;i--)
-        LCDMEMW[i]=0xFFFF;
-    LCDMEMW[9]=0xFFFF;
-
-    for(int i=5;i;i--)
         LCDMEMW[i]=0;
     LCDMEMW[9]=0;
 }

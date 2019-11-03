@@ -12,3 +12,4 @@ extern uint8_t button1pressed;
 extern uint8_t button2pressed;
 
 void showMenu();
+void setCurrentMenu(uint8_t menu);

@@ -17,12 +17,9 @@ void setNoteForTimer() {
 }
 
 void init_sound(void) {
-    P1DIR |= SPEAKER;     // output
-    P1SEL0 |= SPEAKER;     // TA0.0 option (PWM output)
-    P1OUT &= ~SPEAKER;
 
     snd_notes_pos = 0;    // notes position (current pattern)
-
+    playsound = 0;
     // TimerA0 for NOTE FREQUENCY
     TA0CTL |= TASSEL_2 + MC_0 + ID_0; // SMCLK=16MHz, Timer Div: 8, timer in stop mode
     TA0CCTL1 |= OUTMOD_7;                 // reset/set (PWM)
